@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Circle Rhythm Game</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        #gameArea {
+            width: 800px;
+            height: 800px;
+            border: 2px solid #444;
+            position: relative;
+            background-color: #1a1a1a;
+            border-radius: 50%;
+        }
+
+        #track {
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            border: 3px solid #333;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .circle {
+            position: absolute;
+            border-radius: 50%;
+            cursor: pointer;
+            width: 60px;
+            height: 60px;
+        }
+
+        #redCircle {
+            background-color: #ff4444;
+            box-shadow: 0 0 20px #ff4444;
+        }
+
+        #blueCircle {
+            background-color: #4444ff;
+            box-shadow: 0 0 20px #4444ff;
+        }
+
+        #score {
+            font-size: 36px;
+            margin: 20px;
+            color: #ffffff;
+            text-shadow: 0 0 10px #ffffff;
+        }
+
+        #message {
+            font-size: 36px;
+            margin: 20px;
+            color: #4CAF50;
+            text-shadow: 0 0 10px #4CAF50;
+            height: 40px;
+        }
+
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.9);
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            display: none;
+            z-index: 10;
+        }
+
+        #gameOver h2 {
+            font-size: 48px;
+            color: #ff4444;
+            text-shadow: 0 0 10px #ff4444;
+        }
+
+        button {
+            padding: 15px 30px;
+            font-size: 24px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            margin: 10px;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 20px #4CAF50;
+        }
+
+        #soundControl {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+        }
+
+        .trail-dot {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            pointer-events: none;
+            background-color: rgba(255, 0, 0, 0.2);
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.5);
+            transition: opacity 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div id="score">Score: 0</div>
+    <div id="gameArea">
+        <div id="track"></div>
+        <div id="redCircle" class="circle"></div>
+        <div id="blueCircle" class="circle"></div>
+    </div>
+    <div id="message"></div>
+    <div id="gameOver">
+        <h2>Game Over!</h2>
+        <p>Final Score: <span id="finalScore">0</span></p>
+        <button id="restartButton">Play Again</button>
+    </div>
+    <button id="soundControl">🔊</button>
+
+    <script>
+        const gameArea = document.getElementById('gameArea');
+        const redCircle = document.getElementById('redCircle');
+        const blueCircle = document.getElementById('blueCircle');
+        const message = document.getElementById('message');
+        const scoreElement = document.getElementById('score');
+        const gameOverScreen = document.getElementById('gameOver');
+        const finalScoreSpan = document.getElementById('finalScore');
+        const restartButton = document.getElementById('restartButton');
+        const soundControl = document.getElementById('soundControl');
+
+        let score = 0;
+        let angle = 0;
+        let isGameOver = false;
+        const radius = 300; // Radius of the circular path
+        const centerX = gameArea.offsetWidth / 2;
+        const centerY = gameArea.offsetHeight / 2;
+        const speed = 0.005; // Slower speed
+
+        // Audio setup
+        const bgMusic = new Audio('https://assets.mixkit.co/music/preview/mixkit-game-level-music-689.mp3');
+        bgMusic.loop = true;
+        const successSound = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-arcade-game-jump-coin-216.mp3');
+        let isMuted = false;
+
+        soundControl.addEventListener('click', () => {
+            isMuted = !isMuted;
+            soundControl.textContent = isMuted ? '🔈' : '🔊';
+            bgMusic.muted = isMuted;
+            successSound.muted = isMuted;
+        });
+
+        function startGame() {
+            bgMusic.play();
+        }
+
+        let trailDots = [];
+        const trailLength = 20; // Longer trail
+
+        function updateTrail() {
+            // Remove old trail dots
+            while (trailDots.length > trailLength) {
+                const oldDot = trailDots.shift().remove();
+            }
+
+            // Add new trail dot
+            const dot = document.createElement('div');
+            dot.className = 'trail-dot';
+            dot.style.left = (redCircle.offsetLeft + 30) + 'px';
+            dot.style.top = (redCircle.offsetTop + 30) + 'px';
+            gameArea.appendChild(dot);
+            trailDots.push(dot);
+
+            // Fade out older dots
+            trailDots.forEach((dot, index) => {
+                dot.style.opacity = (index / trailLength) * 0.5;
+            });
+        }
+
+        function moveRedCircle() {
+            if (isGameOver) return;
+
+            angle += speed;
+            const newX = centerX + radius * Math.cos(angle) - redCircle.offsetWidth / 2;
+            const newY = centerY + radius * Math.sin(angle) - redCircle.offsetHeight / 2;
+            
+            redCircle.style.left = newX + 'px';
+            redCircle.style.top = newY + 'px';
+
+            updateTrail();
+            requestAnimationFrame(moveRedCircle);
+        }
+
+        function showMessage() {
+            const messages = ['Perfect!', 'Great job!', 'Nice job!'];
+            const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+            message.textContent = randomMessage;
+            setTimeout(() => message.textContent = '', 1000);
+        }
+
+        function gameOver() {
+            isGameOver = true;
+            bgMusic.pause();
+            bgMusic.currentTime = 0;
+            finalScoreSpan.textContent = score;
+            gameOverScreen.style.display = 'block';
+            
+            // Clear trail
+            trailDots.forEach(dot => dot.remove());
+            trailDots = [];
+        }
+
+        function restartGame() {
+            isGameOver = false;
+            score = 0;
+            scoreElement.textContent = `Score: ${score}`;
+            gameOverScreen.style.display = 'none';
+            angle = 0;
+            
+            // Clear trail
+            trailDots.forEach(dot => dot.remove());
+            trailDots = [];
+            
+            startGame();
+        }
+
+        // Position blue circle on the track
+        blueCircle.style.left = (centerX - 30) + 'px';
+        blueCircle.style.top = (centerY - radius - 30) + 'px';
+
+        // Remove the blue circle click handler
+        blueCircle.removeEventListener('click', () => {});
+
+        // Update game area click handler
+        gameArea.addEventListener('click', (e) => {
+            if (isGameOver) return;
+            
+            const redRect = redCircle.getBoundingClientRect();
+            const blueRect = blueCircle.getBoundingClientRect();
+            const distance = Math.sqrt(
+                Math.pow((redRect.left + redRect.width/2) - (blueRect.left + blueRect.width/2), 2) +
+                Math.pow((redRect.top + redRect.height/2) - (blueRect.top + blueRect.height/2), 2)
+            );
+
+            if (distance < redRect.width) {
+                score++;
+                scoreElement.textContent = `Score: ${score}`;
+                showMessage();
+                if (!isMuted) successSound.play();
+            }
+        });
+
+        restartButton.addEventListener('click', restartGame);
+        document.addEventListener('click', startGame, { once: true });
+        moveRedCircle();
+    </script>
+</body>
+</html> 
